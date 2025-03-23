@@ -1,6 +1,6 @@
 # Go Activity Tracking API
 
-A RESTful API service built with Go (Gin) for tracking user activities with features for user management, settings management, and more.
+A project to provide a template for building out Go backend API services.
 
 ## Features
 
