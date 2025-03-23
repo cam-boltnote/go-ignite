@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/cam-boltnote/go-ignite/internal/connectors"
 	"github.com/cam-boltnote/go-ignite/internal/routes"
@@ -43,6 +45,16 @@ func setupRouter(ctx *AppContext) *gin.Engine {
 	// Create default gin router
 	router := gin.Default()
 
+	// Configure trusted proxies
+	trustedProxies := os.Getenv("TRUSTED_PROXIES")
+	if trustedProxies != "" {
+		proxies := strings.Split(trustedProxies, ",")
+		router.SetTrustedProxies(proxies)
+		log.Printf("Configured trusted proxies: %v", proxies)
+	} else {
+		log.Println("Warning: No trusted proxies configured. Set TRUSTED_PROXIES in .env file for production use.")
+	}
+
 	// Update to pass both DB and EmailSender
 	appRoutes := routes.NewRoutes(ctx.DB, ctx.EmailSender)
 	appRoutes.RegisterRoutes(router)
@@ -59,22 +71,46 @@ func main() {
 		log.Printf("Warning: .env file not found")
 	}
 
-	// Initialize database connection (optional)
+	// Initialize database connection based on INIT_DB environment variable
 	var db *gorm.DB
 	var err error
-	database, err := connectors.NewDatabase()
+
+	initDB, err := strconv.ParseBool(os.Getenv("INIT_DB"))
 	if err != nil {
-		log.Printf("Warning: Failed to connect to database: %v", err)
-		db = nil // Ensure db is nil if connection failed
-	} else {
-		db = database.GetDB()
+		initDB = false // Default to false if not set or invalid
 	}
 
-	// Initialize email sender (optional)
+	if initDB {
+		database, err := connectors.NewDatabase()
+		if err != nil {
+			log.Printf("Warning: Failed to connect to database: %v", err)
+			db = nil
+		} else {
+			db = database.GetDB()
+			log.Println("Database initialized successfully")
+		}
+	} else {
+		log.Println("Database initialization skipped (INIT_DB=false)")
+	}
+
+	// Initialize email sender based on INIT_SMTP environment variable
 	var emailSender *connectors.EmailSender
-	emailSender, err = connectors.NewEmailSender()
+
+	initSMTP, err := strconv.ParseBool(os.Getenv("INIT_SMTP"))
 	if err != nil {
-		log.Printf("Warning: Failed to initialize email sender: %v", err)
+		initSMTP = false // Default to false if not set or invalid
+	}
+
+	if initSMTP {
+		emailSender, err = connectors.NewEmailSender()
+		if err != nil {
+			log.Printf("Warning: Failed to initialize email sender: %v", err)
+			emailSender = nil
+		} else {
+			log.Println("Email sender initialized successfully")
+		}
+	} else {
+		log.Println("Email sender initialization skipped (INIT_SMTP=false)")
 		emailSender = nil
 	}
 
